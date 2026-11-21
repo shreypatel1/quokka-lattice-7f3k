@@ -205,26 +205,20 @@ class Bot:
         th = 9 * (1 + 0.05 * tgt.cubes) if tgt.kind == "mech" else 3.5
         tx, ty, tz = tgt.pos[0], tgt.pos[1], tgt.pos[2] + th * 0.5
         vx, vy, vz = tgt.vel
-        g0 = self.map.ground(tgt.pos[0], tgt.pos[1])
-        airborne = tgt.pos[2] > g0 + 0.6 or abs(vz) > 1.0
-        geff = (11.0 if vz < 0 else 6.0) if airborne else 0.0
-        if not airborne:
-            vz = 0.0
+        if abs(vz) > 0 and abs(vz) < 2:
+            vz = 0
         # extrapolate track age
         age = max(0.0, self.t - tgt.seen)
         tx += vx * age; ty += vy * age
         t_ = 0.0
         for _ in range(4):
-            ex, ey, ez = tx + vx * t_, ty + vy * t_, tz + vz * t_ - geff * t_ * t_
+            ex, ey, ez = tx + vx * t_, ty + vy * t_, tz + vz * t_
             dist = math.sqrt((ex - px) ** 2 + (ey - py) ** 2 + (ez - mz) ** 2)
             t_ = dist / speed + 0.1  # +0.1 s decision latency
-        ex, ey, ez = tx + vx * t_, ty + vy * t_, tz + vz * t_ - geff * t_ * t_
-        if tgt.pos[2] < g0 + 3:
-            gz = self.map.ground(ex, ey)
-            if ez < gz + th * 0.5:
-                ez = gz + th * 0.5
-        elif ez < tgt.pos[2] - 2 + th * 0.5 and not airborne:
-            ez = tgt.pos[2] + th * 0.5
+        ex, ey, ez = tx + vx * t_, ty + vy * t_, tz + vz * t_
+        gz = self.map.ground(ex, ey)
+        if ez < gz + th * 0.4:
+            ez = gz + th * 0.5
         return ex, ey, ez
 
     def aim_at(self, me, p, muzzle_z):
@@ -356,8 +350,12 @@ class Bot:
             mode = "retreat"
             threats = [e for e in enemies if d2(pos, e.pos) < 200 and t - e.seen < 3] or [target]
             move_goal = self.hide_spot(me, threats, zat, t)
-        elif target is not None and tdist < 220:
+        elif target is not None and tdist < 220 and (target.vis or hp_frac > 0.7 or (t - self.last_dmg_t) < 3):
             mode = "fight"
+        elif target is not None and tdist < 220:
+            # wounded and the enemy is out of sight: stay hidden and regenerate instead of chasing
+            mode = "retreat"
+            move_goal = self.hide_spot(me, [target], zat, t)
         else:
             g = self.drop_goal(obs, me, zat) or self.loot_goal(obs, me, held, zat, npc_target)
             if g is not None:
@@ -643,7 +641,7 @@ class Bot:
                 mv, _ = self.nav_dir(me, target.pos if radial >= 0 else pos, t)
                 mx, my = mv
         # if target is not visible (behind cover), go toward its last position along nav graph when healthy
-        if not target.vis and me["hp"] / me["max_hp"] > 0.5:
+        if not target.vis and me["hp"] / me["max_hp"] > 0.7:
             mv, _ = self.nav_dir(me, target.pos, t)
             mx, my = mv
         # keep inside zone
