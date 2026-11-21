@@ -9,14 +9,14 @@ import mechfight as mf
 from worldmap import WorldMap, R
 
 TAU = 2 * math.pi
-HOP = True
+HOP = False
 WPRI = {"laser": 4.0, "lightning": 3.95, "gun": 3.8, "mortar": 1.5}
 
 UPGRADE_PRI = {
-    "armor": 10, "plating": 9.6, "gun_rate": 9.2, "gun_damage": 9.0, "lightning_efficiency": 8.8, "nanites": 8.2,
-    "laser_charge": 8.0, "laser_damage": 7.9, "lightning_range": 7.6, "gyros": 7.4, "gun_velocity": 7.2, "gun_mag": 7.0,
+    "armor": 10, "plating": 9.6, "laser_damage": 9.4, "laser_charge": 9.3, "nanites": 9.0, "gun_damage": 8.9,
+    "gun_rate": 8.8, "lightning_efficiency": 8.5, "lightning_range": 7.6, "gyros": 7.4, "gun_velocity": 7.2, "gun_mag": 7.0,
     "lightning_chain": 6.0, "sensors": 6.5, "servos": 6.3, "reactor": 6.2, "capacitor": 5.8,
-    "jets": 4, "laser_pierce": 4, "mortar_reload": 5, "mortar_velocity": 4.5, "mortar_splash": 4.5,
+    "jets": 4, "laser_pierce": 5, "mortar_reload": 5, "mortar_velocity": 4.5, "mortar_splash": 4.5,
 }
 
 
@@ -361,6 +361,12 @@ class Bot:
         move = [0.0, 0.0]; boost = False; jump = False
         if mode == "fight":
             move, boost = self.fight_move(me, target, held, zat, t)
+            # vacuum up nearby cubes mid-fight when the enemy isn't on top of us
+            cubes_near = [c for c in obs["cubes"] if d2(c["pos"], pos) < 22 and abs(c["pos"][2] - pos[2]) < 3.5]
+            if cubes_near and tdist > 35:
+                c = min(cubes_near, key=lambda c: d2(c["pos"], pos))
+                cv, _ = self.nav_dir(me, c["pos"], t)
+                move = [cv[0] * 0.8 + move[0] * 0.3, cv[1] * 0.8 + move[1] * 0.3]
             # hop to spoil enemy leads when they can see us and we're not low on energy
             if HOP and target.vis and me["grounded"] and me["energy"] > 45 and random.random() < 0.12:
                 jump = True
@@ -592,9 +598,9 @@ class Bot:
         elif "lightning" in tw:
             want = 75  # stay out of their arc
         elif "laser" in held:
-            want = 90
+            want = 110
         else:
-            want = 55
+            want = 75
         bearing = math.atan2(target.pos[1] - pos[1], target.pos[0] - pos[0])
         if t > self.strafe_until:
             self.strafe = -self.strafe if random.random() < 0.7 else self.strafe
