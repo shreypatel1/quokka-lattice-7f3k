@@ -9,12 +9,13 @@ import mechfight as mf
 from worldmap import WorldMap, R
 
 TAU = 2 * math.pi
-WPRI = {"laser": 4.0, "lightning": 3.6, "gun": 2.0, "mortar": 1.5}
+HOP = True
+WPRI = {"lightning": 4.0, "gun": 3.8, "laser": 3.5, "mortar": 1.5}
 
 UPGRADE_PRI = {
-    "armor": 10, "plating": 9.5, "laser_charge": 9, "laser_damage": 8.8, "lightning_efficiency": 8.6,
-    "nanites": 8, "gun_rate": 7.8, "gun_damage": 7.6, "gyros": 7.5, "lightning_range": 7.2, "lightning_chain": 6,
-    "sensors": 6.8, "gun_mag": 6.5, "gun_velocity": 6.4, "servos": 6.2, "reactor": 6.0, "capacitor": 5.8,
+    "armor": 10, "plating": 9.6, "gun_rate": 9.2, "gun_damage": 9.0, "lightning_efficiency": 8.8, "nanites": 8.2,
+    "laser_charge": 8.0, "laser_damage": 7.9, "lightning_range": 7.6, "gyros": 7.4, "gun_velocity": 7.2, "gun_mag": 7.0,
+    "lightning_chain": 6.0, "sensors": 6.5, "servos": 6.3, "reactor": 6.2, "capacitor": 5.8,
     "jets": 4, "laser_pierce": 4, "mortar_reload": 5, "mortar_velocity": 4.5, "mortar_splash": 4.5,
 }
 
@@ -360,6 +361,9 @@ class Bot:
         move = [0.0, 0.0]; boost = False; jump = False
         if mode == "fight":
             move, boost = self.fight_move(me, target, held, zat, t)
+            # hop to spoil enemy leads when they can see us and we're not low on energy
+            if HOP and target.vis and me["grounded"] and me["energy"] > 45 and random.random() < 0.12:
+                jump = True
         else:
             if move_goal is not None:
                 move, _ = self.nav_dir(me, move_goal, t)
