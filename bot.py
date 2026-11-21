@@ -10,6 +10,9 @@ from worldmap import WorldMap, R
 
 TAU = 2 * math.pi
 HOP = False
+HOLD = False
+HOLD_FRAC = 0.85
+GUN_TOL = 3.5
 WPRI = {"laser": 4.0, "lightning": 3.95, "gun": 3.8, "mortar": 1.5}
 
 UPGRADE_PRI = {
@@ -354,7 +357,12 @@ class Bot:
             if g is not None:
                 mode = "loot"; move_goal = g
             else:
-                mode = "zone"; move_goal = zone_goal
+                z = obs["zone"]
+                safe = d2(pos, z["next_center"]) < z["next_radius"] * HOLD_FRAC and d2(pos, zc) < zr - 25
+                if HOLD and safe and t > 15 and (t - self.last_dmg_t) > 2:
+                    mode = "hold"; move_goal = None
+                else:
+                    mode = "zone"; move_goal = zone_goal
         self.mode = mode
 
         # ---- movement
@@ -678,7 +686,7 @@ class Bot:
                         aim_cmd = [yaw, pitch]
                     if dd < w["stats"]["range"] * 0.97 and w["cooldown"] <= 0.1 and w.get("reload", 0) <= 0 and w.get("ammo", 1) > 0:
                         err = abs(wrap(my_aim[0] - yaw))
-                        tol = max(0.012, math.atan2(2.2, max(hd, 1)))
+                        tol = max(0.015, math.atan2(GUN_TOL, max(hd, 1)))
                         if err < tol and abs(my_aim[1] - pitch) < tol * 1.5 + 0.02:
                             if tgt.vis and self.clear_shot([pos[0], pos[1], pos[2] + muzzle], p):
                                 fire[si] = True
@@ -686,9 +694,11 @@ class Bot:
                         act["reload"] = True
                 elif k == "laser":
                     yaw, pitch, hd = self.aim_at(me, [tgt.pos[0] + tgt.vel[0] * 0.1, tgt.pos[1] + tgt.vel[1] * 0.1, tgt.pos[2] + (4.5 if tgt.kind == "mech" else 1.7)], muzzle)
-                    aim_cmd = [yaw, pitch]
                     charge = w.get("charge", 0) or 0
                     full = w["stats"]["charge"]
+                    gun_ok = any(ww and ww["kind"] == "gun" and ww.get("ammo", 0) > 0 and ww.get("reload", 0) <= 0 for ww in me["weapons"]) and dd < 200
+                    if aim_cmd is None or not gun_ok or charge >= full - 0.12:
+                        aim_cmd = [yaw, pitch]
                     in_range = dd < w["stats"]["range"] * 0.95
                     if in_range and tgt.vis and w["cooldown"] <= 0.15:
                         err = abs(wrap(my_aim[0] - yaw))
@@ -705,7 +715,7 @@ class Bot:
                 elif k == "lightning":
                     rng = w["stats"]["range"]; cone = math.radians(w["stats"].get("cone_deg", 30)) / 2
                     yaw, pitch, hd = self.aim_at(me, [tgt.pos[0], tgt.pos[1], tgt.pos[2] + 4], muzzle)
-                    if dd < rng * 1.3 and (aim_cmd is None or dd < rng):
+                    if dd < rng * 1.3 and aim_cmd is None:
                         aim_cmd = [yaw, pitch]
                     if dd < rng * 0.97 and w["cooldown"] <= 0.1 and me["energy"] > w["stats"].get("energy", 3) + 2:
                         if abs(wrap(my_aim[0] - yaw)) < cone * 0.8 and tgt.vis:
