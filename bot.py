@@ -10,7 +10,7 @@ from worldmap import WorldMap, R
 
 TAU = 2 * math.pi
 HOP = True
-WPRI = {"lightning": 4.0, "gun": 3.8, "laser": 3.5, "mortar": 1.5}
+WPRI = {"laser": 4.0, "lightning": 3.95, "gun": 3.8, "mortar": 1.5}
 
 UPGRADE_PRI = {
     "armor": 10, "plating": 9.6, "gun_rate": 9.2, "gun_damage": 9.0, "lightning_efficiency": 8.8, "nanites": 8.2,
@@ -462,22 +462,31 @@ class Bot:
             k = p["kind"]
             if k in held:
                 continue
-            v = WPRI.get(k, 1)
-            if held[1] is None:
-                gain = v
-                drop = None
-            else:
-                worst = min((0, 1), key=lambda i: WPRI.get(held[i], 0))
-                if me["weapons"][worst] and me["weapons"][worst].get("charge", 0) > 0:
-                    continue
-                gain = v - WPRI.get(held[worst], 0)
-                drop = worst
+            gain, drop = self.swap_plan(held, k)
+            if drop is not None and me["weapons"][drop] and me["weapons"][drop].get("charge", 0) > 0:
+                continue
+            if gain <= 0.1:
+                continue
             if gain > bscore:
                 bscore = gain; best = (p["id"], drop)
         if best and (self.t - self.last_dmg_t > 1.5 or held[1] is None):
             act["take"] = best[0]
             if best[1] is not None:
                 act["drop"] = best[1]
+
+    def swap_plan(self, held, k):
+        """Gain from taking weapon kind k and which slot it would replace (None = empty slot). Never drops the gun."""
+        v = WPRI.get(k, 1)
+        if k in held:
+            return 0.0, None
+        for i in (1, 0):
+            if held[i] is None:
+                return v, (None if i == 1 or held[1] is None else None)
+        cand = [i for i in (0, 1) if held[i] != "gun"]
+        if not cand:
+            return 0.0, None
+        worst = min(cand, key=lambda i: WPRI.get(held[i], 0))
+        return v - WPRI.get(held[worst], 0), worst
 
     def loot_goal(self, obs, me, held, zat, npc_target):
         pos = me["pos"]; t = obs["t"]
@@ -491,13 +500,9 @@ class Bot:
                 continue
             if self.take_fail.get(p["id"], -99) > t - 3:
                 continue
-            gain = WPRI.get(k, 1) - (WPRI.get(held[1], 0) if held[1] else 0) if held[1] else WPRI.get(k, 1)
-            if held[1] and min(WPRI.get(held[0], 0), WPRI.get(held[1], 0)) >= WPRI.get(k, 1):
+            gain, _ = self.swap_plan(held, k)
+            if gain <= 0.1:
                 continue
-            if gain <= 0.3 and held[1] is not None:
-                worst = min(WPRI.get(held[0], 0), WPRI.get(held[1], 0))
-                if WPRI.get(k, 1) <= worst:
-                    continue
             if abs(p["pos"][2] - self.map.ground(p["pos"][0], p["pos"][1])) > 2.0:
                 continue  # on a roof, skip
             if not inzone(p["pos"]):
