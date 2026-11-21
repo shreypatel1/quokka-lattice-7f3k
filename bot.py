@@ -10,7 +10,7 @@ from worldmap import WorldMap, R
 
 TAU = 2 * math.pi
 HOP = False
-HOLD = False
+HOLD = True
 HOLD_FRAC = 0.85
 GUN_TOL = 3.5
 WPRI = {"laser": 4.0, "lightning": 3.95, "gun": 3.8, "mortar": 1.5}
