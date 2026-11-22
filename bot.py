@@ -12,7 +12,7 @@ TAU = 2 * math.pi
 HOP = False
 HOLD = True
 HOLD_FRAC = 0.85
-GUN_TOL = 3.5
+GUN_TOL = 5.0
 WPRI = {"laser": 4.0, "lightning": 3.95, "gun": 3.8, "mortar": 1.5}
 
 UPGRADE_PRI = {
@@ -340,22 +340,19 @@ class Bot:
             their = target.hp * (1 + 0.04 * min(target.cubes, 10))
             near = [e for e in enemies if d2(pos, e.pos) < 160 and t - e.seen < 2.5]
             n_near = len(near)
-            outmatched = (their > me["hp"] * 1.25 and hp_frac < 0.6) or (n_near >= 2 and hp_frac < 0.85) or (n_near >= 3) or (hp_frac < 0.25)
+            outmatched = (their > me["hp"] * 1.6 and hp_frac < 0.4) or (n_near >= 3 and hp_frac < 0.6) or (hp_frac < 0.15)
         else:
             outmatched = False
 
         if zone_urgent:
             mode = "zone"; move_goal = zone_goal
-        elif target is not None and outmatched and (tdist < 160):
+        elif target is not None and outmatched and (tdist < 120):
             mode = "retreat"
             threats = [e for e in enemies if d2(pos, e.pos) < 200 and t - e.seen < 3] or [target]
             move_goal = self.hide_spot(me, threats, zat, t)
-        elif target is not None and tdist < 220 and (target.vis or hp_frac > 0.7 or (t - self.last_dmg_t) < 3):
+        elif target is not None and tdist < 320:
+            # aggressive: engage at long range, chase even when the enemy breaks line of sight
             mode = "fight"
-        elif target is not None and tdist < 220:
-            # wounded and the enemy is out of sight: stay hidden and regenerate instead of chasing
-            mode = "retreat"
-            move_goal = self.hide_spot(me, [target], zat, t)
         else:
             g = self.drop_goal(obs, me, zat) or self.loot_goal(obs, me, held, zat, npc_target)
             if g is not None:
@@ -641,7 +638,7 @@ class Bot:
                 mv, _ = self.nav_dir(me, target.pos if radial >= 0 else pos, t)
                 mx, my = mv
         # if target is not visible (behind cover), go toward its last position along nav graph when healthy
-        if not target.vis and me["hp"] / me["max_hp"] > 0.7:
+        if not target.vis and me["hp"] / me["max_hp"] > 0.4:
             mv, _ = self.nav_dir(me, target.pos, t)
             mx, my = mv
         # keep inside zone
